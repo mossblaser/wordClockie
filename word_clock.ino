@@ -12,6 +12,7 @@
 
 #include "word_clock.h"
 #include "words.h"
+#include "tween.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +48,7 @@ void write_all_reg(int reg, int value) {
 }
 
 
-char buf[HEIGHT][WIDTH];
+char buf[HEIGHT * WIDTH];
 
 
 void setup_display(void) {
@@ -74,7 +75,7 @@ void setup_display(void) {
 	write_all_reg(0x0C, 0x01);
 }
 
-void reinitialise(void) {
+void reinitialise(int intensity) {
 	// Leave test mode
 	write_all_reg(0x0F, 0x00);
 	
@@ -82,7 +83,7 @@ void reinitialise(void) {
 	write_all_reg(0x09, 0x00);
 	
 	// Set intensity to full
-	write_all_reg(0x0A, 0x0F);
+	write_all_reg(0x0A, intensity);
 	
 	// Limit scan to the 7 rows
 	write_all_reg(0x0B, 0x06);
@@ -91,7 +92,7 @@ void reinitialise(void) {
 	write_all_reg(0x0C, 0x01);
 }
 
-void flip(void) {
+void display(const char *buf) {
 	for (int row = 0; row < DISPLAY_HEIGHT; row++) {
 		digitalWrite(nEN_PIN, LOW);
 		for (int display_y = 0; display_y < DISPLAYS_Y; display_y++) {
@@ -99,8 +100,9 @@ void flip(void) {
 				unsigned char row_pixels = 0;
 				for (int col = 0; col < DISPLAY_WIDTH; col++) {
 					row_pixels <<= 1;
-					row_pixels |= buf[(display_y*DISPLAY_HEIGHT) + row]
-					                 [(display_x*DISPLAY_WIDTH) + col];
+					row_pixels |= buf[ ((display_y*DISPLAY_HEIGHT) + row)*WIDTH
+					                 + ((display_x*DISPLAY_WIDTH) + col)
+					                 ];
 				}
 				// Pad out non-existing pixels
 				row_pixels <<= 8 - DISPLAY_WIDTH;
@@ -140,25 +142,47 @@ void setup() {
 	
 	for (int x = 0; x < WIDTH; x++)
 		for (int y = 0; y < HEIGHT; y++)
-			buf[y][x] = 0;
+			buf[y*WIDTH + x] = 0;
 }
 
 void loop() {
 	static int mins = 0;
 	static int hours = 0;
 	
+	// Pair of frame buffers to contain current time and previous time
+	static char buf_a[HEIGHT * WIDTH];
+	static char buf_b[HEIGHT * WIDTH];
+	
+	static char *prev_buf = buf_a;
+	static char *cur_buf  = buf_b;
+	
+	// Swap buffers
+	if (prev_buf == buf_a) {
+		prev_buf = buf_b;
+		cur_buf  = buf_a;
+	} else {
+		prev_buf = buf_a;
+		cur_buf  = buf_b;
+	}
+	
+	// Render the time into the current buffer
 	char str[100] = {0};
 	words_append_time(str, hours, mins);
-	Serial.println(str);
-	Serial.println(get_word_mask(buf, str));
+	get_word_mask(cur_buf, str);
+	
+	// Animate the transition
+	int intensity;
+	const char *buf;
+	tween_start(prev_buf, cur_buf, TWEEN_FADE, 300);
+	while (tween_next(&buf, &intensity)) {
+		reinitialise(intensity);
+		display(buf);
+	}
 	
 	if (++mins > 59)
 		mins = 0;
 	if (++hours > 23)
 		hours = 0;
-	
-	reinitialise();
-	flip();
 	
 	delay(1000);
 }

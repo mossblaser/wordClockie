@@ -53,7 +53,7 @@ static const mask_t WORDS[HEIGHT][WIDTH] WORDS_PROGMEM = {
  * working from right-to-left and bottom-to-top until the top left corner is
  * reached.
  */
-static void clear_buffer_after(char buf[HEIGHT][WIDTH], int x, int y) {
+static void clear_buffer_after(char *buf, int x, int y) {
 	if (x != 0) {
 		x--;
 	} else {
@@ -63,14 +63,16 @@ static void clear_buffer_after(char buf[HEIGHT][WIDTH], int x, int y) {
 	
 	for (; y >= 0; y--) {
 		for (; x >= 0; x--) {
-			buf[y][x] = 0;
+			buf[y*WIDTH + x] = 0;
 		}
 		x = WIDTH-1;
 	}
 }
 
 
-bool get_word_mask(char buf[HEIGHT][WIDTH], const char *str) {
+bool get_word_mask(char *buf, const char *str) {
+	// Cast to multi-dimensional array
+	
 	// Last char of current word being placed
 	const char *cur_word = str + strlen(str) - 1;
 	// Next char to be placed
@@ -83,13 +85,13 @@ bool get_word_mask(char buf[HEIGHT][WIDTH], const char *str) {
 		for (int x = WIDTH-1; x >= 0; x--) {
 			if (skip_next) {
 				skip_next = false;
-				buf[y][x] = 0;
+				buf[y*WIDTH + x] = 0;
 				continue;
 			}
 			
 			if (GET_MASK_CHAR(x,y) == *cur_char) {
 				// Character found!
-				buf[y][x] = 1;
+				buf[y*WIDTH + x] = 1;
 				
 				if (cur_char == str) {
 					// The current character was the last
@@ -130,7 +132,7 @@ bool get_word_mask(char buf[HEIGHT][WIDTH], const char *str) {
 				for (; y < HEIGHT; y++) {
 					for (; x < WIDTH; x++) {
 						cur_char++;
-						buf[y][x] = 0;
+						buf[y*WIDTH + x] = 0;
 						if (cur_char == cur_word)
 							break;
 					}
@@ -139,7 +141,7 @@ bool get_word_mask(char buf[HEIGHT][WIDTH], const char *str) {
 				}
 			} else {
 				// The first character of the current word was not matched
-				buf[y][x] = 0;
+				buf[y*WIDTH + x] = 0;
 			}
 		}
 	}
