@@ -11,36 +11,33 @@
 // Character mask
 ////////////////////////////////////////////////////////////////////////////////
 
-#undef ARDUINO
 #ifdef ARDUINO
 	#include <avr/pgmspace.h>
-	typedef prog_char mask_t;
+	typedef prog_uchar mask_t;
 	#define WORDS_PROGMEM PROGMEM
 	#define GET_MASK_CHAR(x,y) ((char)(pgm_read_byte_near(WORDS + ((y)*WIDTH) + (x))))
 #else
 	typedef char mask_t;
 	#define WORDS_PROGMEM
-	#define GET_MASK_CHAR(x,y) ((char)(WORDS[y][x]))
-	#define F
+	#define GET_MASK_CHAR(x,y) ((char)(WORDS[y*WIDTH + x]))
 #endif
-#define ARDUINO
 
 // Lookup from pixel coordinate to character on the display.
-static const mask_t WORDS[HEIGHT][WIDTH] WORDS_PROGMEM = {
-	{'f','o','r','i','t','s','c','u','b','e','t','h','a','n','d'},
-	{'f','o','r','t','w','e','n','t','y','t','h','i','r','t','y'},
-	{'o','n','e','l','e','v','e','n','i','n','e','t','e','e','n'},
-	{'t','h','r','e','e','i','g','h','t','e','e','n','t','w','o'},
-	{'s','e','v','e','n','t','e','e','n','t','w','e','l','v','e'},
-	{'t','h','i','r','t','e','e','n','q','u','a','r','t','e','r'},
-	{'f','o','u','r','t','e','e','n','s','i','x','t','e','e','n'},
-	{'f','i','f','t','e','e','n','h','a','l','f','i','v','e','j'},
-	{'t','e','n','d','e','c','a','d','e','s','p','a','s','t','o'},
-	{'t','h','r','e','e','l','e','v','e','n','i','n','e','d','h'},
-	{'o','n','e','i','g','h','t','w','o','t','w','e','l','v','e'},
-	{'w','e','e','k','s','e','v','e','n','d','a','y','s','i','x'},
-	{'m','o','n','t','h','s','y','e','a','r','s','f','o','u','r'},
-	{'f','i','v','e','t','e','n','e','v','e','r','a','m','p','m'}
+static const mask_t WORDS[HEIGHT*WIDTH] WORDS_PROGMEM = {
+	'f','o','r','i','t','s','c','u','b','e','t','h','a','n','d',
+	'f','o','r','t','w','e','n','t','y','t','h','i','r','t','y',
+	'o','n','e','l','e','v','e','n','i','n','e','t','e','e','n',
+	't','h','r','e','e','i','g','h','t','e','e','n','t','w','o',
+	's','e','v','e','n','t','e','e','n','t','w','e','l','v','e',
+	't','h','i','r','t','e','e','n','q','u','a','r','t','e','r',
+	'f','o','u','r','t','e','e','n','s','i','x','t','e','e','n',
+	'f','i','f','t','e','e','n','h','a','l','f','i','v','e','j',
+	't','e','n','d','e','c','a','d','e','s','p','a','s','t','o',
+	't','h','r','e','e','l','e','v','e','n','i','n','e','d','h',
+	'o','n','e','i','g','h','t','w','o','t','w','e','l','v','e',
+	'w','e','e','k','s','e','v','e','n','d','a','y','s','i','x',
+	'm','o','n','t','h','s','y','e','a','r','s','f','o','u','r',
+	'f','i','v','e','t','e','n','e','v','e','r','a','m','p','m'
 };
 
 
@@ -70,7 +67,7 @@ static void clear_buffer_after(char *buf, int x, int y) {
 }
 
 
-bool get_word_mask(char *buf, const char *str) {
+bool words_set_mask(char *buf, const char *str) {
 	// Cast to multi-dimensional array
 	
 	// Last char of current word being placed
@@ -171,8 +168,8 @@ void words_append_number(char *str, int number) {
 	
 	bool has_tens_prefix;
 	switch (tens) {
-		case 2: words_append(str, F("twenty")); has_tens_prefix = true; break;
-		case 3: words_append(str, F("thirty")); has_tens_prefix = true; break;
+		case 2: words_append(str, "twenty"); has_tens_prefix = true; break;
+		case 3: words_append(str, "thirty"); has_tens_prefix = true; break;
 		default: has_tens_prefix = false; break;
 	}
 	
@@ -182,28 +179,28 @@ void words_append_number(char *str, int number) {
 	if (number < 10 || number >= 20) {
 		switch (units) {
 			case 0: break;
-			case 1: words_append(str, F("one")); break;
-			case 2: words_append(str, F("two")); break;
-			case 3: words_append(str, F("three")); break;
-			case 4: words_append(str, F("four")); break;
-			case 5: words_append(str, F("five")); break;
-			case 6: words_append(str, F("six")); break;
-			case 7: words_append(str, F("seven")); break;
-			case 8: words_append(str, F("eight")); break;
-			case 9: words_append(str, F("nine")); break;
+			case 1: words_append(str, "one"); break;
+			case 2: words_append(str, "two"); break;
+			case 3: words_append(str, "three"); break;
+			case 4: words_append(str, "four"); break;
+			case 5: words_append(str, "five"); break;
+			case 6: words_append(str, "six"); break;
+			case 7: words_append(str, "seven"); break;
+			case 8: words_append(str, "eight"); break;
+			case 9: words_append(str, "nine"); break;
 		}
 	} else {
 		switch (number) {
-			case 10: words_append(str, F("ten")); break;
-			case 11: words_append(str, F("eleven")); break;
-			case 12: words_append(str, F("twelve")); break;
-			case 13: words_append(str, F("thirteen")); break;
-			case 14: words_append(str, F("fourteen")); break;
-			case 15: words_append(str, F("fifteen")); break;
-			case 16: words_append(str, F("sixteen")); break;
-			case 17: words_append(str, F("seventeen")); break;
-			case 18: words_append(str, F("eighteen")); break;
-			case 19: words_append(str, F("nineteen")); break;
+			case 10: words_append(str, "ten"); break;
+			case 11: words_append(str, "eleven"); break;
+			case 12: words_append(str, "twelve"); break;
+			case 13: words_append(str, "thirteen"); break;
+			case 14: words_append(str, "fourteen"); break;
+			case 15: words_append(str, "fifteen"); break;
+			case 16: words_append(str, "sixteen"); break;
+			case 17: words_append(str, "seventeen"); break;
+			case 18: words_append(str, "eighteen"); break;
+			case 19: words_append(str, "nineteen"); break;
 		}
 	}
 }
@@ -225,7 +222,7 @@ void words_append_time(char *str, int hours, int minutes) {
 	}
 	
 	// Convert hours to 12-hour time
-	bool am = relative_hours >= 12;
+	bool am = relative_hours < 12;
 	relative_hours %= 12;
 	if (relative_hours == 0)
 		relative_hours = 12;
@@ -243,20 +240,20 @@ void words_append_time(char *str, int hours, int minutes) {
 			break;
 		
 		case 15:
-			words_append(str, F("quarter"));
+			words_append(str, "quarter");
 			break;
 		
 		case 30:
-			words_append(str, F("half"));
+			words_append(str, "half");
 			break;
 	}
 	
 	// Render past/to
 	if (relative_minutes != 0) {
 		if (past)
-			words_append(str, F(" past "));
+			words_append(str, " past ");
 		else
-			words_append(str, F(" to "));
+			words_append(str, " to ");
 	}
 	
 	// Render hours
@@ -264,7 +261,7 @@ void words_append_time(char *str, int hours, int minutes) {
 	
 	// Render AM/PM
 	if (am)
-		words_append(str, F(" am"));
+		words_append(str, " am");
 	else
-		words_append(str, F(" pm"));
+		words_append(str, " pm");
 }

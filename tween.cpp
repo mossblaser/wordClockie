@@ -44,8 +44,9 @@ bool tween_next_fade_from_black(char const **buf, int *global_intensity) {
 		*buf = state.to;
 		*global_intensity = (state.elapsed * 0xF) / state.duration;
 		return true;
-	} else if (state.elapsed < state.duration) {
 	} else {
+		// Prevent overflow
+		state.elapsed--;
 		return false;
 	}
 }
@@ -62,6 +63,8 @@ bool tween_next_fade_to_black(char const **buf, int *global_intensity) {
 		*global_intensity = 0xF;
 		return true;
 	} else {
+		// Prevent overflow
+		state.elapsed--;
 		return false;
 	}
 }
@@ -79,6 +82,8 @@ bool tween_next_fade_through_black(char const **buf, int *global_intensity) {
 		                    / (state.duration - (state.duration/2));
 		return true;
 	} else {
+		// Prevent overflow
+		state.elapsed--;
 		return false;
 	}
 }
@@ -86,7 +91,6 @@ bool tween_next_fade_through_black(char const **buf, int *global_intensity) {
 
 bool tween_next_fade(char const **buf, int *global_intensity) {
 	state.elapsed++;
-	
 	if (state.elapsed < state.duration) {
 		int duty = state.elapsed % TWEEN_FADE_DUTYCYCLE;
 		int phase = (state.elapsed * TWEEN_FADE_DUTYCYCLE) / state.duration;
@@ -102,6 +106,8 @@ bool tween_next_fade(char const **buf, int *global_intensity) {
 		*global_intensity = 0xF;
 		return true;
 	} else {
+		// Prevent overflow
+		state.elapsed--;
 		return false;
 	}
 }

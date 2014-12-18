@@ -7,9 +7,14 @@
 
 #include <Time.h>
 #include <DS1307RTC.h>
-#include <SPI.h>
 #include <Wire.h>
 
+// XXX: Must be included in this file to work around defficiencies in the
+// Arduino toolchain...
+#include <SPI.h>
+
+#include "UnicomReceiver.h"
+#include "display.h"
 #include "word_clock.h"
 #include "words.h"
 #include "tween.h"
@@ -17,150 +22,19 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Pin Definitions
-////////////////////////////////////////////////////////////////////////////////
-
-// Load/nEnable pin for display
-static const int nEN_PIN = 9;
-
-// LDR power pins
-static const int LDR_P_PIN = A0;
-static const int LDR_N_PIN = A1;
-
-// LDR sense pin (analogue pin)
-static const int LDR_PIN = 2;
-
-// Tilt switch pins
-static const int TILT_LEFT_PIN = 2;
-static const int TILT_RIGHT_PIN = 4;
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Display control routines
+// Display buffer
 ////////////////////////////////////////////////////////////////////////////////
 
 // Pair of frame buffers to contain current time and previous time
 char buf_a[HEIGHT * WIDTH];
 char buf_b[HEIGHT * WIDTH];
 
-void write_all_reg(int reg, int value) {
-	digitalWrite(nEN_PIN, LOW);
-	for (int i = 0; i < (DISPLAYS_X*DISPLAYS_Y); i++) {
-		SPI.transfer(reg);
-		SPI.transfer(value);
-	}
-	digitalWrite(nEN_PIN, HIGH);
-}
+// Current and previous frame buffers
+char *prev_buf = buf_a;
+char *cur_buf  = buf_b;
 
-
-void setup_display(void) {
-	// Power-down
-	write_all_reg(0x0C, 0x00);
-	
-	// Leave test mode
-	write_all_reg(0x0F, 0x00);
-	
-	// Don't decode as code-B (seven-seg)
-	write_all_reg(0x09, 0x00);
-	
-	// Set intensity to full
-	write_all_reg(0x0A, 0x0F);
-	
-	// Limit scan to the 7 rows
-	write_all_reg(0x0B, 0x06);
-	
-	// Pre-blank the display
-	for (int row = 0; row < DISPLAY_HEIGHT; row++)
-		write_all_reg(row + 1, 0x00);
-	
-	// Come out of power-down
-	write_all_reg(0x0C, 0x01);
-}
-
-void reinitialise(int intensity) {
-	// Leave test mode
-	write_all_reg(0x0F, 0x00);
-	
-	// Don't decode as code-B (seven-seg)
-	write_all_reg(0x09, 0x00);
-	
-	// Set intensity to full
-	write_all_reg(0x0A, intensity);
-	
-	// Limit scan to the 7 rows
-	write_all_reg(0x0B, 0x06);
-	
-	// Come out of power-down
-	write_all_reg(0x0C, 0x01);
-}
-
-void display(const char *buf) {
-	for (int row = 0; row < DISPLAY_HEIGHT; row++) {
-		digitalWrite(nEN_PIN, LOW);
-		for (int display_y = 0; display_y < DISPLAYS_Y; display_y++) {
-			for (int display_x = 0; display_x < DISPLAYS_X; display_x++) {
-				unsigned char row_pixels = 0;
-				for (int col = 0; col < DISPLAY_WIDTH; col++) {
-					row_pixels <<= 1;
-					row_pixels |= buf[ ((display_y*DISPLAY_HEIGHT) + row)*WIDTH
-					                 + ((display_x*DISPLAY_WIDTH) + col)
-					                 ];
-				}
-				// Pad out non-existing pixels
-				row_pixels <<= 8 - DISPLAY_WIDTH;
-				
-				// Send to display
-				SPI.transfer(row + 1);
-				SPI.transfer(row_pixels);
-			}
-		}
-		digitalWrite(nEN_PIN, HIGH);
-	}
-}
-
-void setup() {
-	Serial.begin(115200);
-	
-	SPI.begin();
-	SPI.setClockDivider(SPI_CLOCK_DIV16);
-	SPI.setDataMode(SPI_MODE0);
-	SPI.setBitOrder(MSBFIRST);
-	
-	setSyncProvider(RTC.get);
-	
-	if(timeStatus()!= timeSet) 
-		Serial.println("Unable to sync with the RTC");
-	else
-		Serial.println("RTC has set the system time");
-	
-	pinMode(nEN_PIN, OUTPUT);
-	digitalWrite(nEN_PIN, HIGH);
-	
-	pinMode(2, INPUT); digitalWrite(2, HIGH);
-	pinMode(4, INPUT); digitalWrite(4, HIGH);
-	
-	pinMode(A0, OUTPUT); digitalWrite(A0, HIGH);
-	pinMode(A1, OUTPUT); digitalWrite(A1, LOW);
-	
-	for (int i = 0; i < WIDTH*HEIGHT; i++) {
-		buf_a[i] = 0;
-		buf_b[i] = 0;
-	}
-	
-	//buf_a[(15/2)*WIDTH + (14/2)] = 1;
-	//buf_b[(15/2)*WIDTH + (14/2)] = 1;
-	get_word_mask(buf_a, "for cube");
-	get_word_mask(buf_b, "for cube");
-}
-
-void loop() {
-	static int mins = 0;
-	static int hours = 0;
-	
-	static char *prev_buf = buf_a;
-	static char *cur_buf  = buf_b;
-	
-	// Swap buffers
+// Switch the buffer in use
+void flip() {
 	if (prev_buf == buf_a) {
 		prev_buf = buf_b;
 		cur_buf  = buf_a;
@@ -168,51 +42,200 @@ void loop() {
 		prev_buf = buf_a;
 		cur_buf  = buf_b;
 	}
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Unicom receiever (optical clock setting interface logic)
+////////////////////////////////////////////////////////////////////////////////
+
+
+// Are we currently updating via unicom?
+bool unicom_updating = false;
+
+// Indicates if the last attempt to synchronise the time using unicom succeeded
+bool unicom_succeeded;
+
+// The number of bits received so far (if receiving)
+size_t unicom_bits_arrived;
+
+UnicomReceiver unicom(LDR_PIN);
+
+/**
+ * Function which uses Unicom to update the current time. This should be called
+ * frequently.
+ */
+void unicom_loop() {
+	// Step the Unicom state machine
+	unicom.refresh();
 	
-	//// Render the time into the current buffer
-	//char str[100] = {0};
-	//words_append_time(str, hours, mins);
-	//get_word_mask(cur_buf, str);
+	// Accumulate incoming time data
+	static size_t bytes_received;
+	static unsigned long cur_time;
+	static unsigned long receive_started;
 	
-	// Render a cellular automata
-	automata_xor(cur_buf, prev_buf);
+	UnicomReceiver::state_t state = unicom.getState();
+	switch (state) {
+		default:
+		case UnicomReceiver::STATE_SYNCING:
+			// No valid data coming in
+			bytes_received = 0;
+			cur_time = 0;
+			unicom_updating = false;
+			break;
+		
+		case UnicomReceiver::STATE_LOCKED:
+			// We've got a clock signal, data will arrive shortly
+			unicom_updating = true;
+			unicom_succeeded = false;
+			receive_started = millis();
+			break;
+		
+		case UnicomReceiver::STATE_RECEIVING:
+			char c;
+			if (unicom.getByte(&c)) {
+				// Accumulate first word of data (the time)
+				if (bytes_received < 4) {
+					cur_time |= ((unsigned long)c & 0xFFul) << (bytes_received*8);
+				}
+				bytes_received++;
+				
+				// Once the time has arrived, update the RTC
+				if (bytes_received == 4) {
+					// Compensate for time spent transmitting
+					cur_time += (millis() - receive_started) / 1000;
+					RTC.set(cur_time);
+					setTime(cur_time);
+					Serial.println("INFO: Successfuly updated clock using unicom.");
+					unicom_succeeded = true;
+				}
+			}
+			
+			// Update the current bit count
+			unicom_bits_arrived = (bytes_received*8) + unicom.getBitsReceived();
+			break;
+	}
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Setup code
+////////////////////////////////////////////////////////////////////////////////
+
+void setup() {
+	// Setup debug
+	Serial.begin(115200);
+	Serial.println("INFO: Word Clock Firmware Running...");
 	
-	// Animate the transition
-	int intensity;
-	const char *buf;
-	tween_start(prev_buf, cur_buf, TWEEN_FADE, 100);
-	while (tween_next(&buf, &intensity)) {
-		reinitialise(intensity);
-		display(buf);
+	// Setup display drivers
+	display_begin();
+	
+	// Setup realtime clock
+	setSyncProvider(RTC.get);
+	if(timeStatus()!= timeSet) 
+		Serial.println("ERROR: Unable get time from RTC.");
+	else
+		Serial.println("INFO: Successfuly read time from RTC");
+	
+	// Set pull-ups for tilt switches
+	pinMode(TILT_LEFT_PIN, INPUT);  digitalWrite(TILT_LEFT_PIN, HIGH);
+	pinMode(TILT_RIGHT_PIN, INPUT); digitalWrite(TILT_RIGHT_PIN, HIGH);
+	
+	// Drive power to LDR potential divider
+	pinMode(LDR_P_PIN, OUTPUT); digitalWrite(LDR_P_PIN, HIGH);
+	pinMode(LDR_N_PIN, OUTPUT); digitalWrite(LDR_N_PIN, LOW);
+	
+	// Initially clear the display buffers
+	for (int i = 0; i < WIDTH*HEIGHT; i++) {
+		buf_a[i] = 0;
+		buf_b[i] = 0;
+	}
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Main UI state-machine
+////////////////////////////////////////////////////////////////////////////////
+
+
+typedef enum {
+	STATE_RESET,
+	STATE_RESET_MESSAGE,
+	STATE_CLOCK,
+	STATE_CLOCK_UPDATE,
+} state_t;
+
+
+
+void loop() {
+	static state_t state = STATE_RESET;
+	
+	unicom_loop();
+	
+	// The time last displayed
+	static int last_minute;
+	static int last_hour;
+	
+	// For the implementation of timers
+	static unsigned long last_time = 0;
+	
+	switch (state) {
+		case STATE_RESET:
+			// On power up, display a friendly message
+			Serial.println("INFO: UI state machine reset");
+			flip();
+			words_set_mask(cur_buf, "for cube");
+			tween_start(prev_buf, cur_buf, TWEEN_FADE_FROM_BLACK, RESET_MESSAGE_TWEEN_FRAMES);
+			state = STATE_RESET_MESSAGE;
+			last_time = millis();
+			break;
+		
+		case STATE_RESET_MESSAGE:
+			// Let the message linger for some time after reset before showing the
+			// clock
+			if ((millis() - last_time) >= RESET_MESSAGE_TIMEOUT_MSEC) {
+				state = STATE_CLOCK;
+			}
+			break;
+		
+		case STATE_CLOCK:
+		case STATE_CLOCK_UPDATE:
+			{
+				// Update the time, if it has changed (or just entering the clock state)
+				time_t t = now();
+				if (state == STATE_CLOCK || hour(t) != last_hour || minute(t) != last_minute) {
+					last_minute = minute(t);
+					last_hour = hour(t);
+					
+					// Render the time into the current buffer
+					char str[100];
+					strcpy(str, "its ");
+					words_append_time(str, hour(t), minute(t));
+					
+					// Start animating a transition
+					flip();
+					words_set_mask(cur_buf, str);
+					if (state == STATE_CLOCK)
+						tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, CLOCK_TWEEN_FRAMES);
+					else
+						tween_start(prev_buf, cur_buf, TWEEN_FADE, CLOCK_UPDATE_TWEEN_FRAMES);
+				}
+				
+				state = STATE_CLOCK_UPDATE;
+			}
+			break;
+		
+		default:
+			state = STATE_RESET;
+			Serial.print("Entered unknown state ");
+			Serial.println(state);
+			break;
 	}
 	
-	if (++mins > 59)
-		mins = 0;
-	if (++hours > 23)
-		hours = 0;
+	// Update the display
+	int intensity;
+	const char *buf;
+	if (tween_next(&buf, &intensity))
+		display_buf(buf, intensity);
 	
-	delay(100);
-}
-
-
-void digitalClockDisplay(){
-  // digital clock display of the time
-  Serial.print(hour());
-  printDigits(minute());
-  printDigits(second());
-  Serial.print(" ");
-  Serial.print(day());
-  Serial.print(" ");
-  Serial.print(month());
-  Serial.print(" ");
-  Serial.print(year()); 
-  Serial.println(); 
-}
-
-void printDigits(int digits){
-  // utility function for digital clock display: prints preceding colon and leading 0
-  Serial.print(":");
-  if(digits < 10)
-    Serial.print('0');
-  Serial.print(digits);
 }

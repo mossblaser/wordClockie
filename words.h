@@ -25,7 +25,7 @@
  * @returns True if the string was successfuly displayed or false if the string
  *          could not be rendered using the characters available.
  */
-bool get_word_mask(char *buf, const char *str);
+bool words_set_mask(char *buf, const char *str);
 
 
 /**
