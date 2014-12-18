@@ -13,6 +13,7 @@
 #include "word_clock.h"
 #include "words.h"
 #include "tween.h"
+#include "automata.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,6 +39,10 @@ static const int TILT_RIGHT_PIN = 4;
 // Display control routines
 ////////////////////////////////////////////////////////////////////////////////
 
+// Pair of frame buffers to contain current time and previous time
+char buf_a[HEIGHT * WIDTH];
+char buf_b[HEIGHT * WIDTH];
+
 void write_all_reg(int reg, int value) {
 	digitalWrite(nEN_PIN, LOW);
 	for (int i = 0; i < (DISPLAYS_X*DISPLAYS_Y); i++) {
@@ -46,9 +51,6 @@ void write_all_reg(int reg, int value) {
 	}
 	digitalWrite(nEN_PIN, HIGH);
 }
-
-
-char buf[HEIGHT * WIDTH];
 
 
 void setup_display(void) {
@@ -140,18 +142,20 @@ void setup() {
 	pinMode(A0, OUTPUT); digitalWrite(A0, HIGH);
 	pinMode(A1, OUTPUT); digitalWrite(A1, LOW);
 	
-	for (int x = 0; x < WIDTH; x++)
-		for (int y = 0; y < HEIGHT; y++)
-			buf[y*WIDTH + x] = 0;
+	for (int i = 0; i < WIDTH*HEIGHT; i++) {
+		buf_a[i] = 0;
+		buf_b[i] = 0;
+	}
+	
+	//buf_a[(15/2)*WIDTH + (14/2)] = 1;
+	//buf_b[(15/2)*WIDTH + (14/2)] = 1;
+	get_word_mask(buf_a, "for cube");
+	get_word_mask(buf_b, "for cube");
 }
 
 void loop() {
 	static int mins = 0;
 	static int hours = 0;
-	
-	// Pair of frame buffers to contain current time and previous time
-	static char buf_a[HEIGHT * WIDTH];
-	static char buf_b[HEIGHT * WIDTH];
 	
 	static char *prev_buf = buf_a;
 	static char *cur_buf  = buf_b;
@@ -165,15 +169,18 @@ void loop() {
 		cur_buf  = buf_b;
 	}
 	
-	// Render the time into the current buffer
-	char str[100] = {0};
-	words_append_time(str, hours, mins);
-	get_word_mask(cur_buf, str);
+	//// Render the time into the current buffer
+	//char str[100] = {0};
+	//words_append_time(str, hours, mins);
+	//get_word_mask(cur_buf, str);
+	
+	// Render a cellular automata
+	automata_xor(cur_buf, prev_buf);
 	
 	// Animate the transition
 	int intensity;
 	const char *buf;
-	tween_start(prev_buf, cur_buf, TWEEN_FADE, 300);
+	tween_start(prev_buf, cur_buf, TWEEN_FADE, 100);
 	while (tween_next(&buf, &intensity)) {
 		reinitialise(intensity);
 		display(buf);
@@ -184,7 +191,7 @@ void loop() {
 	if (++hours > 23)
 		hours = 0;
 	
-	delay(1000);
+	delay(100);
 }
 
 
