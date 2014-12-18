@@ -21,6 +21,7 @@
 	typedef char mask_t;
 	#define WORDS_PROGMEM
 	#define GET_MASK_CHAR(x,y) ((char)(WORDS[y][x]))
+	#define F
 #endif
 #define ARDUINO
 
@@ -168,8 +169,8 @@ void words_append_number(char *str, int number) {
 	
 	bool has_tens_prefix;
 	switch (tens) {
-		case 2: words_append(str, "twenty"); has_tens_prefix = true; break;
-		case 3: words_append(str, "thirty"); has_tens_prefix = true; break;
+		case 2: words_append(str, F("twenty")); has_tens_prefix = true; break;
+		case 3: words_append(str, F("thirty")); has_tens_prefix = true; break;
 		default: has_tens_prefix = false; break;
 	}
 	
@@ -179,28 +180,28 @@ void words_append_number(char *str, int number) {
 	if (number < 10 || number >= 20) {
 		switch (units) {
 			case 0: break;
-			case 1: words_append(str, "one"); break;
-			case 2: words_append(str, "two"); break;
-			case 3: words_append(str, "three"); break;
-			case 4: words_append(str, "four"); break;
-			case 5: words_append(str, "five"); break;
-			case 6: words_append(str, "six"); break;
-			case 7: words_append(str, "seven"); break;
-			case 8: words_append(str, "eight"); break;
-			case 9: words_append(str, "nine"); break;
+			case 1: words_append(str, F("one")); break;
+			case 2: words_append(str, F("two")); break;
+			case 3: words_append(str, F("three")); break;
+			case 4: words_append(str, F("four")); break;
+			case 5: words_append(str, F("five")); break;
+			case 6: words_append(str, F("six")); break;
+			case 7: words_append(str, F("seven")); break;
+			case 8: words_append(str, F("eight")); break;
+			case 9: words_append(str, F("nine")); break;
 		}
 	} else {
 		switch (number) {
-			case 10: words_append(str, "ten"); break;
-			case 11: words_append(str, "eleven"); break;
-			case 12: words_append(str, "twelve"); break;
-			case 13: words_append(str, "thirteen"); break;
-			case 14: words_append(str, "fourteen"); break;
-			case 15: words_append(str, "fifteen"); break;
-			case 16: words_append(str, "sixteen"); break;
-			case 17: words_append(str, "seventeen"); break;
-			case 18: words_append(str, "eighteen"); break;
-			case 19: words_append(str, "nineteen"); break;
+			case 10: words_append(str, F("ten")); break;
+			case 11: words_append(str, F("eleven")); break;
+			case 12: words_append(str, F("twelve")); break;
+			case 13: words_append(str, F("thirteen")); break;
+			case 14: words_append(str, F("fourteen")); break;
+			case 15: words_append(str, F("fifteen")); break;
+			case 16: words_append(str, F("sixteen")); break;
+			case 17: words_append(str, F("seventeen")); break;
+			case 18: words_append(str, F("eighteen")); break;
+			case 19: words_append(str, F("nineteen")); break;
 		}
 	}
 }
@@ -240,20 +241,20 @@ void words_append_time(char *str, int hours, int minutes) {
 			break;
 		
 		case 15:
-			words_append(str, "quarter");
+			words_append(str, F("quarter"));
 			break;
 		
 		case 30:
-			words_append(str, "half");
+			words_append(str, F("half"));
 			break;
 	}
 	
 	// Render past/to
 	if (relative_minutes != 0) {
 		if (past)
-			words_append(str, " past ");
+			words_append(str, F(" past "));
 		else
-			words_append(str, " to ");
+			words_append(str, F(" to "));
 	}
 	
 	// Render hours
@@ -261,7 +262,7 @@ void words_append_time(char *str, int hours, int minutes) {
 	
 	// Render AM/PM
 	if (am)
-		words_append(str, " am");
+		words_append(str, F(" am"));
 	else
-		words_append(str, " pm");
+		words_append(str, F(" pm"));
 }
