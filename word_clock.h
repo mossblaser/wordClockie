@@ -56,11 +56,60 @@
 // UI Animation Timing
 ////////////////////////////////////////////////////////////////////////////////
 
+// Fames for fade-in of initial message
 #define RESET_MESSAGE_TWEEN_FRAMES 1000
+
+// Time (ms) to display the initial message
 #define RESET_MESSAGE_TIMEOUT_MSEC 5000
 
+// Frames for animation when starting to display the clock
 #define CLOCK_TWEEN_FRAMES 1000
+
+// Frames for animation when changing the clock time
 #define CLOCK_UPDATE_TWEEN_FRAMES 200
+
+// Frames for fading out animation of previous frame before displaying a
+// scrolling message
+#define SCROLL_MESSAGE_TWEEN_FRAMES 1000
+
+// Time (ms) between frames of a scrolling message
+#define SCROLLING_MESSAGE_FRAME_MSEC 100
+
+// Frames for animation when changing to showing the duration of our marriage
+// (or changing this message).
+#define MARRIAGE_DURATION_TWEEN_FRAMES 500
+
+// Time (ms) between parts of the description of the time we've been married
+#define MARRIAGE_DURATION_PAUSE_MSEC 3000
+
+////////////////////////////////////////////////////////////////////////////////
+// Significant dates
+////////////////////////////////////////////////////////////////////////////////
+
+#define ANIVERSARY_YEAR 2014
+#define ANIVERSARY_MONTH 1
+#define ANIVERSARY_DAY 4
+
+#define MET_YEAR 2010
+#define MET_MONTH 11
+#define MET_DAY 14
+
+#define CUBE_BIRTHDAY_YEAR 1989
+#define CUBE_BIRTHDAY_MONTH 10
+#define CUBE_BIRTHDAY_DAY 30
+
+#define THAN_BIRTHDAY_YEAR 1990
+#define THAN_BIRTHDAY_MONTH 12
+#define THAN_BIRTHDAY_DAY 11
+
+#define CHRISTMAS_MONTH 12
+#define CHRISTMAS_DAY 25
+
+#define NEW_YEAR_MONTH 1
+#define NEW_YEAR_DAY 1
+
+#define NEW_YEAR_EVE_MONTH 12
+#define NEW_YEAR_EVE_DAY 31
 
 ////////////////////////////////////////////////////////////////////////////////
 // Pin Definitions
@@ -86,7 +135,6 @@ static const int LDR_PIN = 2;
 // Tilt switch pins
 static const int TILT_LEFT_PIN = 2;
 static const int TILT_RIGHT_PIN = 4;
-
 
 
 #endif
