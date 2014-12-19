@@ -216,7 +216,7 @@ void loop() {
 			// On power up, display a friendly message
 			Serial.println("INFO: UI state machine reset");
 			flip();
-			words_set_mask(cur_buf, "for cube");
+			words_set_mask(cur_buf, "for cube *");
 			tween_start(prev_buf, cur_buf, TWEEN_FADE_FROM_BLACK, RESET_MESSAGE_TWEEN_FRAMES);
 			state = STATE_RESET_MESSAGE;
 			last_time = millis();
@@ -239,7 +239,7 @@ void loop() {
 					last_hour = hour(t);
 					
 					// Render the time into the current buffer
-					strcpy(str, "its ");
+					strcpy(str, "it is ");
 					words_append_time(str, hour(t), minute(t));
 					
 					// Start animating a transition
@@ -318,7 +318,7 @@ void loop() {
 				
 				// Show next unit after a pause
 				if (millis() - last_time >= MARRIAGE_DURATION_PAUSE_MSEC) {
-					if (aniversary_years > 39) {
+					if (aniversary_years > 19) {
 						words_append_number(str, aniversary_years / 10);
 						words_append(str, " decades");
 						aniversary_years %= 10;
@@ -444,9 +444,9 @@ void loop() {
 			}
 			break;
 		
-		case STATE_UNICOM_TRANSFERRING:
+		case STATE_UNICOM_LOCKED:
 			if (!unicom_updating) {
-			
+				state = STATE_UNICOM_ERROR;
 			}
 		
 		default:

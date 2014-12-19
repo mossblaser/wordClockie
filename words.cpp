@@ -24,20 +24,20 @@
 
 // Lookup from pixel coordinate to character on the display.
 static const mask_t WORDS[HEIGHT*WIDTH] WORDS_PROGMEM = {
-	'f','o','r','i','t','s','c','u','b','e','t','h','a','n','d',
-	'f','o','r','t','w','e','n','t','y','t','h','i','r','t','y',
+	'f','o','r','i','t','c','u','b','e','t','h','a','n','d','y',
+	'i','s','f','o','r','t','w','e','n','t','y','e','t','w','o',
 	'o','n','e','l','e','v','e','n','i','n','e','t','e','e','n',
-	't','h','r','e','e','i','g','h','t','e','e','n','t','w','o',
+	't','h','r','e','e','i','g','h','t','e','e','n','t','e','n',
 	's','e','v','e','n','t','e','e','n','t','w','e','l','v','e',
 	't','h','i','r','t','e','e','n','q','u','a','r','t','e','r',
 	'f','o','u','r','t','e','e','n','s','i','x','t','e','e','n',
-	'f','i','f','t','e','e','n','h','a','l','f','i','v','e','j',
-	't','e','n','d','e','c','a','d','e','s','p','a','s','t','o',
-	't','h','r','e','e','l','e','v','e','n','i','n','e','d','h',
+	'h','a','l','f','i','v','e','*','m','i','n','u','t','e','s',
+	'p','a','s','t','o','f','i','f','t','e','e','n','t','e','n',
+	't','h','r','e','e','l','e','v','e','n','i','n','e','g','o',
 	'o','n','e','i','g','h','t','w','o','t','w','e','l','v','e',
 	'w','e','e','k','s','e','v','e','n','d','a','y','s','i','x',
-	'm','o','n','t','h','s','y','e','a','r','s','f','o','u','r',
-	'f','i','v','e','t','e','n','e','v','e','r','a','m','p','m'
+	'f','o','u','r','f','i','v','e','d','e','c','a','d','e','s',
+	'y','e','a','r','s','a','m','o','n','t','h','s','p','m','k'
 };
 
 
@@ -160,7 +160,7 @@ void words_append(char *str, const char *appendage) {
 
 void words_append_number(char *str, int number) {
 	// Fail if out of bounds
-	if (number < 1 or number > 39)
+	if (number < 1 or number > 29)
 		return;
 	
 	int tens  = number / 10;
@@ -169,7 +169,6 @@ void words_append_number(char *str, int number) {
 	bool has_tens_prefix;
 	switch (tens) {
 		case 2: words_append(str, "twenty"); has_tens_prefix = true; break;
-		case 3: words_append(str, "thirty"); has_tens_prefix = true; break;
 		default: has_tens_prefix = false; break;
 	}
 	
@@ -237,6 +236,9 @@ void words_append_time(char *str, int hours, int minutes) {
 		case 11: case 12: case 13: case 14: case 16: case 17: case 18: case 19: case 20:
 		case 21: case 22: case 23: case 24: case 25: case 26: case 27: case 28: case 29:
 			words_append_number(str, relative_minutes);
+			words_append(str, " minute");
+			if (relative_minutes > 1)
+				words_append(str, "s");
 			break;
 		
 		case 15:
