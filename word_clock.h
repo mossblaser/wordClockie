@@ -94,6 +94,24 @@
 // Time (ms) after the sad/happy face before the clock returns
 #define UNICOM_FINAL_TIMEOUT_MSEC 1000
 
+// Time (ms) between frames of the cellular automata
+#define AUTOMATA_FRAME_MSEC 500
+
+// Number of frames to to display the automata
+#define AUTOMATA_NUM_FRAMES (10000 / (AUTOMATA_FRAME_MSEC))
+
+// Frames for animation into the automata
+#define AUTOMATA_ENTRY_TWEEN_FRAMES 500
+
+// Frames for animation into the automata
+#define AUTOMATA_TWEEN_FRAMES 100
+
+// Time (ms) between frames of the I love cube message
+#define I_LOVE_CUBE_FRAME_MSEC 1000
+
+// Frames for animation between frames of the I love cube message
+#define I_LOVE_CUBE_TWEEN_FRAMES 500
+
 ////////////////////////////////////////////////////////////////////////////////
 // Significant dates
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +140,19 @@
 
 #define NEW_YEAR_EVE_MONTH 12
 #define NEW_YEAR_EVE_DAY 31
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Shake detection parameters
+////////////////////////////////////////////////////////////////////////////////
+
+// Time for which the tilt switches must have been constantly varying before
+// shaking is assumed
+#define SHAKE_MIN_DURATION 1000
+
+// Maximum time between a tilt switch state change to be considered a shake.
+#define SHAKE_MAX_PERIOD 300ul
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Pin Definitions
