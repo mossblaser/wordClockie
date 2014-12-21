@@ -512,12 +512,12 @@ void loop() {
 		
 		
 		case STATE_UNICOM_OK:
-			// TODO: Show success
-			state = STATE_CLOCK;
+			if (millis() - last_time >= UNICOM_FINAL_TIMEOUT_MSEC)
+				state = STATE_CLOCK;
 			break;
 		
 		case STATE_UNICOM_ERROR:
-			if (unicom_bits_arrived > -4) {
+			if (unicom_bits_arrived >= -4) {
 				if (millis() - last_time >= UNICOM_ERROR_FRAME_MSEC) {
 					if (unicom_bits_arrived > 15)
 						unicom_bits_arrived = 15;
@@ -526,12 +526,8 @@ void loop() {
 					unicom_bits_arrived--;
 					last_time = millis();
 				}
-			} else {
-				if (millis() - last_time >= UNICOM_ERROR_TIMEOUT_MSEC) {
-					face(cur_buf, -4, false);
-					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
-					state = STATE_CLOCK;
-				}
+			} else if (millis() - last_time >= UNICOM_FINAL_TIMEOUT_MSEC) {
+				state = STATE_CLOCK;
 			}
 			break;
 		

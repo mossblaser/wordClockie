@@ -86,13 +86,13 @@
 #define UNICOM_START_TWEEN_FRAMES 500
 
 // Period (ms) of blinking pattern during unisync lock phase
-#define UNICOM_LOCKED_BLINK_PHASE_MSEC 100
+#define UNICOM_LOCKED_BLINK_PHASE_MSEC 300
 
 // Time (ms) between frames of the saddening face
-#define UNICOM_ERROR_FRAME_MSEC 100
+#define UNICOM_ERROR_FRAME_MSEC 60
 
-// Time (ms) after the sade face
-#define UNICOM_ERROR_TIMEOUT_MSEC 1000
+// Time (ms) after the sad/happy face before the clock returns
+#define UNICOM_FINAL_TIMEOUT_MSEC 1000
 
 ////////////////////////////////////////////////////////////////////////////////
 // Significant dates
