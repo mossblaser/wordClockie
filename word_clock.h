@@ -82,6 +82,18 @@
 // Time (ms) between parts of the description of the time we've been married
 #define MARRIAGE_DURATION_PAUSE_MSEC 3000
 
+// Frames for animation when changing to showing the unicom sync status
+#define UNICOM_START_TWEEN_FRAMES 500
+
+// Period (ms) of blinking pattern during unisync lock phase
+#define UNICOM_LOCKED_BLINK_PHASE_MSEC 100
+
+// Time (ms) between frames of the saddening face
+#define UNICOM_ERROR_FRAME_MSEC 100
+
+// Time (ms) after the sade face
+#define UNICOM_ERROR_TIMEOUT_MSEC 1000
+
 ////////////////////////////////////////////////////////////////////////////////
 // Significant dates
 ////////////////////////////////////////////////////////////////////////////////

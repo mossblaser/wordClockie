@@ -20,6 +20,7 @@
 #include "tween.h"
 #include "automata.h"
 #include "text.h"
+#include "face.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,11 +55,10 @@ void flip() {
 // Are we currently updating via unicom?
 bool unicom_updating = false;
 
-// Indicates if the last attempt to synchronise the time using unicom succeeded
-bool unicom_succeeded;
+// Proportion of bits received successfully (0 - 1 inclusive).
+int unicom_bits_arrived;
 
-// The number of bits received so far (if receiving)
-size_t unicom_bits_arrived;
+const int unicom_num_bits = 32;
 
 UnicomReceiver unicom(LDR_PIN);
 
@@ -72,7 +72,7 @@ void unicom_loop() {
 	
 	// Accumulate incoming time data
 	static size_t bytes_received;
-	static unsigned long cur_time;
+	static unsigned long received_time;
 	static unsigned long receive_started;
 	
 	UnicomReceiver::state_t state = unicom.getState();
@@ -80,8 +80,6 @@ void unicom_loop() {
 		default:
 		case UnicomReceiver::STATE_SYNCING:
 			// No valid data coming in
-			bytes_received = 0;
-			cur_time = 0;
 			unicom_updating = false;
 			break;
 		
@@ -89,32 +87,38 @@ void unicom_loop() {
 			// We've got a clock signal, data will arrive shortly
 			unicom_updating = true;
 			unicom_bits_arrived = 0;
-			unicom_succeeded = false;
+			
+			bytes_received = 0;
+			received_time = 0ul;
 			receive_started = millis();
 			break;
 		
 		case UnicomReceiver::STATE_RECEIVING:
 			char c;
 			if (unicom.getByte(&c)) {
-				// Accumulate first word of data (the time)
-				if (bytes_received < 4) {
-					cur_time |= ((unsigned long)c & 0xFFul) << (bytes_received*8);
-				}
 				bytes_received++;
+				
+				// Accumulate first word of data (the time)
+				if (bytes_received <= 4) {
+					received_time |= ((unsigned long)c & 0xFFul) << ((bytes_received-1)*8);
+				}
 				
 				// Once the time has arrived, update the RTC
 				if (bytes_received == 4) {
 					// Compensate for time spent transmitting
-					cur_time += (millis() - receive_started) / 1000;
-					RTC.set(cur_time);
-					setTime(cur_time);
-					Serial.println("INFO: Successfuly updated clock using unicom.");
-					unicom_succeeded = true;
+					received_time += (500ul + millis() - receive_started) / 1000ul;
+					RTC.set(received_time);
+					setTime(received_time);
+					Serial.println(F("INFO: Successfuly updated clock using unicom."));
+					unicom_updating = false;
 				}
 			}
 			
-			// Update the current bit count
+			// Update the progress indicator
 			unicom_bits_arrived = (bytes_received*8) + unicom.getBitsReceived();
+			if (unicom_bits_arrived > unicom_num_bits)
+				unicom_bits_arrived = unicom_num_bits;
+			
 			break;
 	}
 }
@@ -127,7 +131,7 @@ void unicom_loop() {
 void setup() {
 	// Setup debug
 	Serial.begin(115200);
-	Serial.println("INFO: Word Clock Firmware Running...");
+	Serial.println(F("INFO: Word Clock Firmware Running..."));
 	
 	// Setup display drivers
 	display_begin();
@@ -135,9 +139,9 @@ void setup() {
 	// Setup realtime clock
 	setSyncProvider(RTC.get);
 	if(timeStatus()!= timeSet) 
-		Serial.println("ERROR: Unable get time from RTC.");
+		Serial.println(F("ERROR: Unable get time from RTC."));
 	else
-		Serial.println("INFO: Successfuly read time from RTC");
+		Serial.println(F("INFO: Successfuly read time from RTC"));
 	
 	// Set pull-ups for tilt switches
 	pinMode(TILT_LEFT_PIN, INPUT);  digitalWrite(TILT_LEFT_PIN, HIGH);
@@ -173,6 +177,7 @@ typedef enum {
 	STATE_MARRIAGE_DURATION,
 	STATE_MARRIAGE_DURATION_UPDATE,
 	STATE_MOTD,
+	STATE_UNICOM,
 	STATE_UNICOM_LOCKED,
 	STATE_UNICOM_TRANSFERRING,
 	STATE_UNICOM_OK,
@@ -214,7 +219,7 @@ void loop() {
 	switch (state) {
 		case STATE_RESET:
 			// On power up, display a friendly message
-			Serial.println("INFO: UI state machine reset");
+			Serial.println(F("INFO: UI state machine reset"));
 			flip();
 			words_set_mask(cur_buf, "for cube *");
 			tween_start(prev_buf, cur_buf, TWEEN_FADE_FROM_BLACK, RESET_MESSAGE_TWEEN_FRAMES);
@@ -227,6 +232,9 @@ void loop() {
 			// message of the day
 			if ((millis() - last_time) >= RESET_MESSAGE_TIMEOUT_MSEC)
 				state = STATE_MOTD;
+			
+			if (unicom_updating)
+				state = STATE_UNICOM;
 			break;
 		
 		case STATE_CLOCK:
@@ -256,6 +264,9 @@ void loop() {
 				} else {
 					state = STATE_CLOCK_UPDATE;
 				}
+				
+				if (unicom_updating)
+					state = STATE_UNICOM;
 			}
 			break;
 		
@@ -266,6 +277,8 @@ void loop() {
 				cur_buf[i] = 0;
 			tween_start(prev_buf, cur_buf, TWEEN_FADE_TO_BLACK, SCROLL_MESSAGE_TWEEN_FRAMES);
 			state = STATE_SCROLL_MESSAGE_UPDATE;
+			if (unicom_updating)
+				state = STATE_UNICOM;
 			break;
 		
 		case STATE_SCROLL_MESSAGE_UPDATE:
@@ -278,6 +291,8 @@ void loop() {
 				
 				last_time = millis();
 			}
+			if (unicom_updating)
+				state = STATE_UNICOM;
 			break;
 		
 		case STATE_MARRIAGE_DURATION:
@@ -361,6 +376,9 @@ void loop() {
 					}
 				}
 			}
+			
+			if (unicom_updating)
+				state = STATE_UNICOM;
 			break;
 		
 		case STATE_MOTD:
@@ -444,14 +462,82 @@ void loop() {
 			}
 			break;
 		
+		case STATE_UNICOM:
+			Serial.println(F("INFO: Unicom got lock!"));
+			flip();
+			face(cur_buf, 0, false);
+			last_time = millis();
+			tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, UNICOM_START_TWEEN_FRAMES);
+			state = STATE_UNICOM_LOCKED;
+			break;
+		
 		case STATE_UNICOM_LOCKED:
 			if (!unicom_updating) {
+				Serial.println(F("ERROR: Unicom lost lock before transfer."));
 				state = STATE_UNICOM_ERROR;
+				last_time = millis();
+			} else if (unicom_bits_arrived > 0) {
+				Serial.println(F("INFO: Unicom data stream started."));
+				state = STATE_UNICOM_TRANSFERRING;
+			} else {
+				// Blink the little face!
+				if (!tween_running && millis() - last_time >= UNICOM_LOCKED_BLINK_PHASE_MSEC) {
+					last_time = millis();
+					face(cur_buf, 0, random(0,2));
+					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
+				}
 			}
+			break;
+		
+		case STATE_UNICOM_TRANSFERRING:
+			if (unicom_updating) {
+				if (unicom_bits_arrived <= unicom_num_bits) {
+					face(cur_buf, (unicom_bits_arrived*14) / unicom_num_bits, false);
+					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
+				}
+			} else {
+				if (unicom_bits_arrived == unicom_num_bits) {
+					Serial.println(F("INFO: Unicom data stream arrived successfuly."));
+					state = STATE_UNICOM_OK;
+				} else {
+					Serial.print(F("ERROR: Unicom data stream failed after "));
+					Serial.print(unicom_bits_arrived);
+					Serial.println(F(" bits."));
+					state = STATE_UNICOM_ERROR;
+				}
+				
+				last_time = millis();
+			}
+			break;
+		
+		
+		case STATE_UNICOM_OK:
+			// TODO: Show success
+			state = STATE_CLOCK;
+			break;
+		
+		case STATE_UNICOM_ERROR:
+			if (unicom_bits_arrived > -4) {
+				if (millis() - last_time >= UNICOM_ERROR_FRAME_MSEC) {
+					if (unicom_bits_arrived > 15)
+						unicom_bits_arrived = 15;
+					face(cur_buf, unicom_bits_arrived, false);
+					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
+					unicom_bits_arrived--;
+					last_time = millis();
+				}
+			} else {
+				if (millis() - last_time >= UNICOM_ERROR_TIMEOUT_MSEC) {
+					face(cur_buf, -4, false);
+					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
+					state = STATE_CLOCK;
+				}
+			}
+			break;
 		
 		default:
 			state = STATE_RESET;
-			Serial.print("Entered unknown state ");
+			Serial.print(F("Entered unknown state "));
 			Serial.println(state);
 			break;
 	}
