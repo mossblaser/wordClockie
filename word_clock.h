@@ -119,6 +119,7 @@
 // Significant dates
 ////////////////////////////////////////////////////////////////////////////////
 
+// XXX: Note that this will not work for days > 28. Sorry if you're not us!
 #define ANIVERSARY_YEAR 2014
 #define ANIVERSARY_MONTH 1
 #define ANIVERSARY_DAY 4

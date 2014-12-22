@@ -282,7 +282,7 @@ void loop() {
 				break;
 			
 			default:
-				// Enter unicom state
+				// Enter unicom state while not already showing a unicom message
 				state = STATE_UNICOM;
 				break;
 		}
@@ -290,11 +290,17 @@ void loop() {
 	
 	// State machine logic
 	switch (state) {
+		////////////////////////////////////////////////////////////////////////////
+		// Reset (enter via STATE_RESET)
+		//
+		// Display a friendly message on power-on followed by the message of the
+		// day.
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_RESET:
 			// On power up, display a friendly message
 			Serial.println(F("INFO: UI state machine reset"));
 			flip();
-			words_set_mask(cur_buf, "for cube *");
+			words_set_mask(cur_buf, "for cube *"); // '*' is a heart
 			tween_start(prev_buf, cur_buf, TWEEN_FADE_FROM_BLACK, RESET_MESSAGE_TWEEN_FRAMES);
 			state = STATE_RESET_MESSAGE;
 			last_time = millis();
@@ -307,9 +313,17 @@ void loop() {
 				state = STATE_MOTD;
 			break;
 		
+		////////////////////////////////////////////////////////////////////////////
+		// (Word) clock (enter via STATE_CLOCK)
+		//
+		// Display the time using the word mask. Shows the message of the day at a
+		// random point each hour. If device is shaken, enter STATE_SHAKE.
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_CLOCK:
 		case STATE_CLOCK_UPDATE:
 			{
+				state = STATE_CLOCK_UPDATE;
+				
 				// Update the time, if it has changed (or just entering the clock state)
 				time_t t = now();
 				if (state == STATE_CLOCK || hour(t) != last_hour || minute(t) != last_minute) {
@@ -327,20 +341,28 @@ void loop() {
 						tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, CLOCK_TWEEN_FRAMES);
 					else
 						tween_start(prev_buf, cur_buf, TWEEN_FADE, CLOCK_UPDATE_TWEEN_FRAMES);
-					
-					state = STATE_CLOCK_UPDATE;
-				} else if (!tween_running && hour(t) == motd_hour && minute(t) == motd_minute) {
+				} else if (!tween_running && (  (motd_hour != hour(t) && (24 + motd_hour - hour(t))%24 != 1)
+				                             || (hour(t) == motd_hour && minute(t) >= motd_minute)
+				                             )) {
+					// Show the message of the day at a random point each hour.
 					state = STATE_MOTD;
-				} else {
-					state = STATE_CLOCK_UPDATE;
-				}
-				
-				// React to shaking
-				if (shaking)
+				} else if (shaking) {
+					// React to shaking
 					state = STATE_SHAKE;
+				}
 			}
 			break;
 		
+		
+		////////////////////////////////////////////////////////////////////////////
+		// Display a large scrolling message (enter via STATE_SCROLL_MESSAGE).
+		//
+		// Usage:
+		//
+		//   text_start(static_message_string_here);
+		//   post_scrolling_message_state = STATE_MARRIAGE_DURATION;
+		//   state = STATE_SCROLL_MESSAGE;
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_SCROLL_MESSAGE:
 			// Start displaying a scrolling message
 			flip();
@@ -362,10 +384,16 @@ void loop() {
 			}
 			break;
 		
+		////////////////////////////////////////////////////////////////////////////
+		// Display how long we've been married (enter via STATE_MARRIAGE_DURATION)
+		//
+		// Displays the duration of our marriage in decades (if > 19 years), years,
+		// months, weeks and days before returning to displaying the time.
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_MARRIAGE_DURATION:
 		case STATE_MARRIAGE_DURATION_UPDATE:
 			{
-				// If just entering this state, 
+				// If just entering this state, work out the duration
 				if (state == STATE_MARRIAGE_DURATION) {
 					// Re-wind time such that it appears our aniversary happened on the first
 					// of the month to allow easy getting of the number of months from the
@@ -445,6 +473,14 @@ void loop() {
 			}
 			break;
 		
+		////////////////////////////////////////////////////////////////////////////
+		// Show the message of the day (enter via STATE_MOTD)
+		//
+		// The message of the day may be an aniversary, birthday or holiday
+		// greeting. If not a 'special' date the duration of our marriage will be
+		// displayed. Entering this state will cause the next MOTD to be shown at a
+		// random point in the following hour.
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_MOTD:
 			// Schedule the next message of the day...
 			if (day() == NEW_YEAR_EVE_DAY && month() == NEW_YEAR_EVE_MONTH) {
@@ -526,8 +562,17 @@ void loop() {
 			}
 			break;
 		
+		
+		////////////////////////////////////////////////////////////////////////////
+		// Display the status of unicom (entered automatically via STATE_UNICOM)
+		//
+		// Shows an increasingly happy face as time synchronisation draws closer to
+		// a conclusion. Upon an error, the face becomes sad. After sync, the clock
+		// is displayed.
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_UNICOM:
 			Serial.println(F("INFO: Unicom got lock!"));
+			// Transition into a neutral face once synchronising
 			flip();
 			face(cur_buf, 0, false);
 			last_time = millis();
@@ -544,7 +589,7 @@ void loop() {
 				Serial.println(F("INFO: Unicom data stream started."));
 				state = STATE_UNICOM_TRANSFERRING;
 			} else {
-				// Blink the little face!
+				// Blink the eyes while locked
 				if (!tween_running && millis() - last_time >= UNICOM_LOCKED_BLINK_PHASE_MSEC) {
 					last_time = millis();
 					face(cur_buf, 0, (animation_frame++)&1);
@@ -555,6 +600,8 @@ void loop() {
 		
 		case STATE_UNICOM_TRANSFERRING:
 			if (unicom_updating) {
+				// Make the face get progressively happier while the synchronisation
+				// proceeds.
 				if (unicom_bits_arrived <= unicom_num_bits) {
 					face(cur_buf, (unicom_bits_arrived*14) / unicom_num_bits, false);
 					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
@@ -574,14 +621,16 @@ void loop() {
 			}
 			break;
 		
-		
 		case STATE_UNICOM_OK:
+			// Let the happy face linger a little after completion
 			if (millis() - last_time >= UNICOM_FINAL_TIMEOUT_MSEC)
 				state = STATE_CLOCK;
 			break;
 		
 		
 		case STATE_UNICOM_ERROR:
+			// Animate the face getting progressively sadder until hitting its minimum
+			// happiness and lingering a little.
 			if (unicom_bits_arrived >= -4) {
 				if (millis() - last_time >= UNICOM_ERROR_FRAME_MSEC) {
 					if (unicom_bits_arrived > 15)
@@ -597,6 +646,9 @@ void loop() {
 			break;
 		
 		
+		////////////////////////////////////////////////////////////////////////////
+		// Do something fun when the device is shaken (enter via STATE_SHAKE).
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_SHAKE:
 			Serial.println(F("INFO: Device shaken!"));
 			
@@ -606,12 +658,14 @@ void loop() {
 				case 1: state = STATE_LOVE_NOTE; break;
 				case 2: state = STATE_AUTOMATA;  break;
 			}
-			
-			if (unicom_updating)
-				state = STATE_UNICOM;
 			break;
 		
 		
+		////////////////////////////////////////////////////////////////////////////
+		// Say something romantic using the word mask (enter via STATE_LOVE_NOTE).
+		//
+		// Returns to clock after completion.
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_LOVE_NOTE:
 		case STATE_LOVE_NOTE_UPDATE:
 			if (state == STATE_LOVE_NOTE) {
@@ -625,7 +679,7 @@ void loop() {
 					flip();
 					switch (animation_frame) {
 						case 0: words_set_mask(cur_buf, "than"); break;
-						case 1: words_set_mask(cur_buf, "*");    break;
+						case 1: words_set_mask(cur_buf, "*");    break; // Heart
 						case 2: words_set_mask(cur_buf, "cube"); break;
 					}
 					tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, I_LOVE_CUBE_TWEEN_FRAMES);
@@ -635,10 +689,14 @@ void loop() {
 					state = STATE_CLOCK;
 				}
 			}
-			if (unicom_updating)
-				state = STATE_UNICOM;
 			break;
 		
+		////////////////////////////////////////////////////////////////////////////
+		// Display the cellular automaton from our wedding invitations (enter via
+		// STATE_AUTOMATA).
+		//
+		// Returns to clock after running the automata for some time.
+		////////////////////////////////////////////////////////////////////////////
 		case STATE_AUTOMATA:
 		case STATE_AUTOMATA_UPDATE:
 			if (state == STATE_AUTOMATA) {
@@ -652,7 +710,7 @@ void loop() {
 				if (animation_frame < AUTOMATA_NUM_FRAMES) {
 					flip();
 					if (animation_frame == 0)
-						words_set_mask(cur_buf, "*");
+						words_set_mask(cur_buf, "*"); // Heart in the middle of the array
 					else
 						automata_xor(cur_buf, prev_buf);
 					tween_start(prev_buf, cur_buf, TWEEN_FADE, AUTOMATA_TWEEN_FRAMES);
@@ -662,8 +720,6 @@ void loop() {
 				}
 				animation_frame++;
 			}
-			if (unicom_updating)
-				state = STATE_UNICOM;
 			break;
 		
 		default:

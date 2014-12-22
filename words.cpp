@@ -22,7 +22,7 @@
 	#define GET_MASK_CHAR(x,y) ((char)(WORDS[y*WIDTH + x]))
 #endif
 
-// Lookup from pixel coordinate to character on the display.
+// Lookup from pixel coordinate to character on the display. ('*' is a heart).
 static const mask_t WORDS[HEIGHT*WIDTH] WORDS_PROGMEM = {
 	'f','o','r','i','t','c','u','b','e','t','h','a','n','d','y',
 	'i','s','f','o','r','t','w','e','n','t','y','e','t','w','o',
