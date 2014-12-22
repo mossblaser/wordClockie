@@ -34,8 +34,8 @@
 #include "mouth_n4.png.h"
 #include "nose.png.h"
 
-#define MOUTH_MIN -4
-#define MOUTH_MAX 15
+#define MOUTH_MIN FACE_MIN
+#define MOUTH_MAX FACE_MAX
 static prog_uchar *MOUTHES[1+MOUTH_MAX-MOUTH_MIN] = {
 	mouth_n4, mouth_n3, mouth_n2, mouth_n1,
 	mouth_0, mouth_1, mouth_2, mouth_3, mouth_4,
@@ -45,8 +45,8 @@ static prog_uchar *MOUTHES[1+MOUTH_MAX-MOUTH_MIN] = {
 };
 
 
-#define EYE_MIN MOUTH_MIN
-#define EYE_MAX MOUTH_MAX
+#define EYE_MIN FACE_MIN
+#define EYE_MAX FACE_MAX
 static prog_uchar *EYES[1+EYE_MAX-EYE_MIN] = {
 	eyes_n2, eyes_n2, eyes_n1, eyes_n1,
 	eyes_0, eyes_0, eyes_0, eyes_0, eyes_0, eyes_0, eyes_0, eyes_0,

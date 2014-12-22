@@ -630,7 +630,7 @@ void loop() {
 				// Make the face get progressively happier while the synchronisation
 				// proceeds.
 				if (unicom_bits_arrived <= unicom_num_bits) {
-					face(cur_buf, (unicom_bits_arrived*14) / unicom_num_bits, false);
+					face(cur_buf, (unicom_bits_arrived*FACE_MAX) / unicom_num_bits, false);
 					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
 				}
 			} else {
@@ -658,10 +658,10 @@ void loop() {
 		case STATE_UNICOM_ERROR:
 			// Animate the face getting progressively sadder until hitting its minimum
 			// happiness and lingering a little.
-			if (unicom_bits_arrived >= -4) {
+			if (unicom_bits_arrived >= FACE_MIN) {
 				if (millis() - last_time >= UNICOM_ERROR_FRAME_MSEC) {
-					if (unicom_bits_arrived > 15)
-						unicom_bits_arrived = 15;
+					if (unicom_bits_arrived > FACE_MAX)
+						unicom_bits_arrived = FACE_MAX;
 					face(cur_buf, unicom_bits_arrived, false);
 					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
 					unicom_bits_arrived--;
@@ -786,7 +786,7 @@ void loop() {
 		
 		case STATE_SMILING_TIME_FACE:
 			if (!tween_running && millis() - last_time >= SMILING_TIME_FRAME_MSEC) {
-				if (animation_frame < 14) {
+				if (animation_frame < FACE_MAX) {
 					// Get more and more excited
 					animation_frame++;
 					face(cur_buf, animation_frame, false);
