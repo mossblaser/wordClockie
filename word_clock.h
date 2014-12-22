@@ -94,6 +94,9 @@
 // Time (ms) after the sad/happy face before the clock returns
 #define UNICOM_FINAL_TIMEOUT_MSEC 1000
 
+// Time (ms) to show the first frame of the cellular automaton
+#define AUTOMATA_FIRST_FRAME_MSEC 2000
+
 // Time (ms) between frames of the cellular automata
 #define AUTOMATA_FRAME_MSEC 500
 

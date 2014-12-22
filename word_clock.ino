@@ -222,10 +222,10 @@ typedef enum {
 	STATE_UNICOM_OK,
 	STATE_UNICOM_ERROR,
 	STATE_SHAKE,
-	STATE_SHAKE_I,
-	STATE_SHAKE_LOVE,
-	STATE_SHAKE_CUBE,
-	STATE_SHAKE_AUTOMATA,
+	STATE_LOVE_NOTE,
+	STATE_LOVE_NOTE_UPDATE,
+	STATE_AUTOMATA,
+	STATE_AUTOMATA_UPDATE,
 } state_t;
 
 
@@ -234,22 +234,29 @@ void loop() {
 	unicom_loop();
 	shake_detect_loop();
 	
+	// Current state
 	static state_t state = STATE_RESET;
 	
-	// The time last displayed
+	// Used by STATE_CLOCK_UPDATE: the time most recently displayed.
 	static int last_minute;
 	static int last_hour;
 	
 	// Is a tween currently running?
 	static bool tween_running;
 	
-	// For the implementation of timers
+	// For the implementation of timers: the time when the timer was started.
 	static unsigned long last_time = 0;
 	
-	// State to enter after displaying a scrolling message
+	// For use when entering STATE_SCROLL_MESSAGE: state to enter after displaying
+	// a scrolling message.
 	static state_t post_scrolling_message_state;
 	
-	// Marriage duration
+	// For image sequences (e.g. STATE_LOVE_NOTE* and STATE_AUTOMATA*): the
+	// current frame number
+	static int animation_frame = 0;
+	
+	// Used for STATE_MARRIAGE_DURATION*: Marriage duration (fields are zeroed
+	// after they've been displayed)
 	static int aniversary_years;
 	static int aniversary_months;
 	static int aniversary_weeks;
@@ -259,11 +266,29 @@ void loop() {
 	static int motd_minute;
 	static int motd_hour;
 	
-	// Number of automata frames which have been shown
-	static int automata_frames = 0;
-	
+	// General purpose string-constructing buffer
 	static char str[100];
 	
+	// Global state override: force the state machine to show unicom state during
+	// updates
+	if (unicom_updating) {
+		switch (state) {
+			case STATE_UNICOM:
+			case STATE_UNICOM_LOCKED:
+			case STATE_UNICOM_TRANSFERRING:
+			case STATE_UNICOM_OK:
+			case STATE_UNICOM_ERROR:
+				// Do nothing; already showing unicom status
+				break;
+			
+			default:
+				// Enter unicom state
+				state = STATE_UNICOM;
+				break;
+		}
+	}
+	
+	// State machine logic
 	switch (state) {
 		case STATE_RESET:
 			// On power up, display a friendly message
@@ -280,9 +305,6 @@ void loop() {
 			// message of the day
 			if ((millis() - last_time) >= RESET_MESSAGE_TIMEOUT_MSEC)
 				state = STATE_MOTD;
-			
-			if (unicom_updating)
-				state = STATE_UNICOM;
 			break;
 		
 		case STATE_CLOCK:
@@ -313,9 +335,8 @@ void loop() {
 					state = STATE_CLOCK_UPDATE;
 				}
 				
-				if (unicom_updating)
-					state = STATE_UNICOM;
-				else if (shaking)
+				// React to shaking
+				if (shaking)
 					state = STATE_SHAKE;
 			}
 			break;
@@ -327,10 +348,6 @@ void loop() {
 				cur_buf[i] = 0;
 			tween_start(prev_buf, cur_buf, TWEEN_FADE_TO_BLACK, SCROLL_MESSAGE_TWEEN_FRAMES);
 			state = STATE_SCROLL_MESSAGE_UPDATE;
-			if (unicom_updating)
-				state = STATE_UNICOM;
-			else if (shaking)
-				state = STATE_SHAKE;
 			break;
 		
 		case STATE_SCROLL_MESSAGE_UPDATE:
@@ -343,10 +360,6 @@ void loop() {
 				
 				last_time = millis();
 			}
-			if (unicom_updating)
-				state = STATE_UNICOM;
-			else if (shaking)
-				state = STATE_SHAKE;
 			break;
 		
 		case STATE_MARRIAGE_DURATION:
@@ -430,11 +443,6 @@ void loop() {
 					}
 				}
 			}
-			
-			if (unicom_updating)
-				state = STATE_UNICOM;
-			else if (shaking)
-				state = STATE_SHAKE;
 			break;
 		
 		case STATE_MOTD:
@@ -539,7 +547,7 @@ void loop() {
 				// Blink the little face!
 				if (!tween_running && millis() - last_time >= UNICOM_LOCKED_BLINK_PHASE_MSEC) {
 					last_time = millis();
-					face(cur_buf, 0, random(0,2));
+					face(cur_buf, 0, (animation_frame++)&1);
 					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
 				}
 			}
@@ -552,7 +560,7 @@ void loop() {
 					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
 				}
 			} else {
-				if (unicom_bits_arrived == unicom_num_bits) {
+				if (unicom_bits_arrived >= unicom_num_bits) {
 					Serial.println(F("INFO: Unicom data stream arrived successfuly."));
 					state = STATE_UNICOM_OK;
 				} else {
@@ -572,6 +580,7 @@ void loop() {
 				state = STATE_CLOCK;
 			break;
 		
+		
 		case STATE_UNICOM_ERROR:
 			if (unicom_bits_arrived >= -4) {
 				if (millis() - last_time >= UNICOM_ERROR_FRAME_MSEC) {
@@ -589,72 +598,69 @@ void loop() {
 		
 		
 		case STATE_SHAKE:
-			switch (random(0, 2)) {
+			Serial.println(F("INFO: Device shaken!"));
+			
+			switch (random(0, 3)) {
 				default:
-				case 0:
+				case 0: state = STATE_MOTD;      break;
+				case 1: state = STATE_LOVE_NOTE; break;
+				case 2: state = STATE_AUTOMATA;  break;
+			}
+			
+			if (unicom_updating)
+				state = STATE_UNICOM;
+			break;
+		
+		
+		case STATE_LOVE_NOTE:
+		case STATE_LOVE_NOTE_UPDATE:
+			if (state == STATE_LOVE_NOTE) {
+				state = STATE_LOVE_NOTE_UPDATE;
+				animation_frame = 0;
+				last_time = millis() - I_LOVE_CUBE_FRAME_MSEC;
+			}
+			
+			if (millis() - last_time >= I_LOVE_CUBE_FRAME_MSEC) {
+				if (animation_frame < 3) {
 					flip();
-					words_set_mask(cur_buf, "than");
+					switch (animation_frame) {
+						case 0: words_set_mask(cur_buf, "than"); break;
+						case 1: words_set_mask(cur_buf, "*");    break;
+						case 2: words_set_mask(cur_buf, "cube"); break;
+					}
 					tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, I_LOVE_CUBE_TWEEN_FRAMES);
-					state = STATE_SHAKE_I;
 					last_time = millis();
-					break;
-				
-				case 1:
-					flip();
-					words_set_mask(cur_buf, "*");
-					tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, AUTOMATA_ENTRY_TWEEN_FRAMES);
-					automata_frames = 0;
-					state = STATE_SHAKE_AUTOMATA;
-					last_time = millis();
-					break;
+					animation_frame++;
+				} else {
+					state = STATE_CLOCK;
+				}
+			}
+			if (unicom_updating)
+				state = STATE_UNICOM;
+			break;
+		
+		case STATE_AUTOMATA:
+		case STATE_AUTOMATA_UPDATE:
+			if (state == STATE_AUTOMATA) {
+				state = STATE_AUTOMATA_UPDATE;
+				animation_frame = 0;
+				last_time = millis() - AUTOMATA_FRAME_MSEC;
 			}
 			
-			if (unicom_updating)
-				state = STATE_UNICOM;
-			
-			break;
-		
-		case STATE_SHAKE_I:
-			if (millis() - last_time >= I_LOVE_CUBE_FRAME_MSEC) {
-				flip();
-				words_set_mask(cur_buf, "*");
-				tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, I_LOVE_CUBE_TWEEN_FRAMES);
-				state = STATE_SHAKE_LOVE;
-				last_time = millis();
-			}
-			if (unicom_updating)
-				state = STATE_UNICOM;
-			break;
-		
-		case STATE_SHAKE_LOVE:
-			if (millis() - last_time >= I_LOVE_CUBE_FRAME_MSEC) {
-				flip();
-				words_set_mask(cur_buf, "cube");
-				tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, I_LOVE_CUBE_TWEEN_FRAMES);
-				state = STATE_SHAKE_CUBE;
-				last_time = millis();
-			}
-			if (unicom_updating)
-				state = STATE_UNICOM;
-			break;
-		
-		case STATE_SHAKE_CUBE:
-			if (millis() - last_time >= I_LOVE_CUBE_FRAME_MSEC)
-				state = STATE_CLOCK;
-			break;
-		
-		
-		case STATE_SHAKE_AUTOMATA:
-			if (millis() - last_time >= AUTOMATA_FRAME_MSEC) {
-				automata_frames++;
-				if (automata_frames < AUTOMATA_NUM_FRAMES) {
+			if ((animation_frame == 1 && millis() - last_time >= AUTOMATA_FIRST_FRAME_MSEC)
+			    || (animation_frame != 1 && millis() - last_time >= AUTOMATA_FRAME_MSEC)) {
+				if (animation_frame < AUTOMATA_NUM_FRAMES) {
 					flip();
-					automata_xor(cur_buf, prev_buf);
+					if (animation_frame == 0)
+						words_set_mask(cur_buf, "*");
+					else
+						automata_xor(cur_buf, prev_buf);
 					tween_start(prev_buf, cur_buf, TWEEN_FADE, AUTOMATA_TWEEN_FRAMES);
 					last_time = millis();
 				} else {
 					state = STATE_CLOCK;
 				}
+				animation_frame++;
 			}
 			if (unicom_updating)
 				state = STATE_UNICOM;
