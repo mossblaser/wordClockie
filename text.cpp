@@ -14,7 +14,7 @@
 //                      |  |   |               (must be FONT_)
 //                      |  |   '-- Font name
 //                      |  '-- Number of LEDs high (rounded to multiple of 8)
-//                      '-- Height of font (0 - 40)
+//                      '-- Height of font (0 - 14)
 
 #include "font.h"
 
