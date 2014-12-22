@@ -3,6 +3,9 @@
  *
  * Hardware consists of an array of MAX7219/MAX7221 driven LED arrays, a
  * realtime clock and an LDR and tilt switches for I/O.
+ *
+ * This firmware is centered around a state machine which controls what messages
+ * and images are displayed on the display.
  */
 
 #include <Time.h>
@@ -245,10 +248,10 @@ void loop() {
 	static int last_hour;
 	
 	// Is a tween currently running?
-	static bool tween_running;
+	static bool tween_running = false;
 	
 	// For the implementation of timers: the time when the timer was started.
-	static unsigned long last_time = 0;
+	static unsigned long last_time;
 	
 	// For use when entering STATE_SCROLL_MESSAGE: state to enter after displaying
 	// a scrolling message.
@@ -256,7 +259,7 @@ void loop() {
 	
 	// For image sequences (e.g. STATE_LOVE_NOTE* and STATE_AUTOMATA*): the
 	// current frame number
-	static int animation_frame = 0;
+	static int animation_frame;
 	
 	// Used for STATE_MARRIAGE_DURATION*: Marriage duration (fields are zeroed
 	// after they've been displayed)
@@ -266,10 +269,12 @@ void loop() {
 	static int aniversary_days;
 	
 	// The time at which the message of the day should next be displayed
-	static int motd_minute;
-	static int motd_hour;
+	// (initially set to 0 so that it is triggered immediately, though not
+	// strictly required since MOTD is explicitly triggered on reset anyway).
+	static int motd_minute = 0;
+	static int motd_hour = 0;
 	
-	// The time at which smiling time should be shown
+	// The time at which smiling time should be shown (initially set randomly)
 	static int smiling_time_hour   = random( SMILING_TIME_CANDIDATES_START
 	                                       , SMILING_TIME_CANDIDATES_END+1
 	                                       );
