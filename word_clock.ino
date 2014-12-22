@@ -226,6 +226,9 @@ typedef enum {
 	STATE_LOVE_NOTE_UPDATE,
 	STATE_AUTOMATA,
 	STATE_AUTOMATA_UPDATE,
+	STATE_SMILING_TIME,
+	STATE_SMILING_TIME_EEEK,
+	STATE_SMILING_TIME_FACE,
 } state_t;
 
 
@@ -265,6 +268,17 @@ void loop() {
 	// The time at which the message of the day should next be displayed
 	static int motd_minute;
 	static int motd_hour;
+	
+	// The time at which smiling time should be shown
+	static int smiling_time_hour   = random( SMILING_TIME_CANDIDATES_START
+	                                       , SMILING_TIME_CANDIDATES_END+1
+	                                       );
+	static int smiling_time_minute = random(0,60);
+	
+	// The day that smiling time last occurred on (i.e. if it is not today,
+	// smiling time is when the above hour and minute match!), initially set
+	// smiling time to some time today.
+	static int smiling_time_last_day = 0;
 	
 	// General purpose string-constructing buffer
 	static char str[100];
@@ -317,7 +331,8 @@ void loop() {
 		// (Word) clock (enter via STATE_CLOCK)
 		//
 		// Display the time using the word mask. Shows the message of the day at a
-		// random point each hour. If device is shaken, enter STATE_SHAKE.
+		// random point each hour. Shows smiling time at some point each day. If
+		// device is shaken, enters STATE_SHAKE to do something fun.
 		////////////////////////////////////////////////////////////////////////////
 		case STATE_CLOCK:
 		case STATE_CLOCK_UPDATE:
@@ -341,6 +356,12 @@ void loop() {
 						tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, CLOCK_TWEEN_FRAMES);
 					else
 						tween_start(prev_buf, cur_buf, TWEEN_FADE, CLOCK_UPDATE_TWEEN_FRAMES);
+				} else if (!tween_running && (  smiling_time_last_day != day(t)
+				                             && hour(t) >= smiling_time_hour
+				                             && minute(t) >= smiling_time_minute
+				                             )) {
+					// Show smiling time at the designated time
+					state = STATE_SMILING_TIME;
 				} else if (!tween_running && (  (motd_hour != hour(t) && (24 + motd_hour - hour(t))%24 != 1)
 				                             || (hour(t) == motd_hour && minute(t) >= motd_minute)
 				                             )) {
@@ -370,6 +391,7 @@ void loop() {
 				cur_buf[i] = 0;
 			tween_start(prev_buf, cur_buf, TWEEN_FADE_TO_BLACK, SCROLL_MESSAGE_TWEEN_FRAMES);
 			state = STATE_SCROLL_MESSAGE_UPDATE;
+			last_time = millis();
 			break;
 		
 		case STATE_SCROLL_MESSAGE_UPDATE:
@@ -652,11 +674,12 @@ void loop() {
 		case STATE_SHAKE:
 			Serial.println(F("INFO: Device shaken!"));
 			
-			switch (random(0, 3)) {
+			switch (random(0, 4)) {
 				default:
-				case 0: state = STATE_MOTD;      break;
-				case 1: state = STATE_LOVE_NOTE; break;
-				case 2: state = STATE_AUTOMATA;  break;
+				case 0: state = STATE_MOTD;         break;
+				case 1: state = STATE_LOVE_NOTE;    break;
+				case 2: state = STATE_AUTOMATA;     break;
+				case 3: state = STATE_SMILING_TIME; break;
 			}
 			break;
 		
@@ -719,6 +742,58 @@ void loop() {
 					state = STATE_CLOCK;
 				}
 				animation_frame++;
+			}
+			break;
+		
+		////////////////////////////////////////////////////////////////////////////
+		// Announce smiling time! (enter via STATE_SMILING_TIME).
+		//
+		// Shows a face beginning a grin followed by a scrolling message. Returns to
+		// the clock afterwards.
+		////////////////////////////////////////////////////////////////////////////
+		case STATE_SMILING_TIME:
+			// Start displaying "eeek"
+			flip();
+			words_set_mask(cur_buf, "ee e e e e e e k");
+			tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, SMILING_TIME_TWEEN_FRAMES);
+			last_time = millis();
+			state = STATE_SMILING_TIME_EEEK;
+			
+			// Schedule the next smiling time randomly tomorrow
+			smiling_time_last_day = day();
+			smiling_time_hour     = random( SMILING_TIME_CANDIDATES_START
+			                              , SMILING_TIME_CANDIDATES_END+1
+			                              );
+			smiling_time_minute   = random(0,60);
+			break;
+		
+		case STATE_SMILING_TIME_EEEK:
+			// Followed by a progressively more excited face
+			if (millis() - last_time >= SMILING_TIME_EEEK_MSEC) {
+				flip();
+				animation_frame = 0;
+				face(cur_buf, animation_frame, false);
+				tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, SMILING_TIME_TWEEN_FRAMES);
+				state = STATE_SMILING_TIME_FACE;
+				last_time = millis();
+			}
+			break;
+		
+		case STATE_SMILING_TIME_FACE:
+			if (!tween_running && millis() - last_time >= SMILING_TIME_FRAME_MSEC) {
+				if (animation_frame < 14) {
+					// Get more and more excited
+					animation_frame++;
+					face(cur_buf, animation_frame, false);
+					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
+					last_time = millis();
+				} else {
+					// And eventually show a scrolling message
+					strcpy(str, "Smiling Time!");
+					text_start(str);
+					post_scrolling_message_state = STATE_CLOCK;
+					state = STATE_SCROLL_MESSAGE;
+				}
 			}
 			break;
 		

@@ -115,6 +115,19 @@
 // Frames for animation between frames of the I love cube message
 #define I_LOVE_CUBE_TWEEN_FRAMES 500
 
+// Frames for tweens in smiling time
+#define SMILING_TIME_TWEEN_FRAMES 200
+
+// Time (ms) to display "eeek" before smiling time
+#define SMILING_TIME_EEEK_MSEC 2000
+
+// Time (ms) between frames of the smiling face for smiling time
+#define SMILING_TIME_FRAME_MSEC 60
+
+// Time (ms) to hold the smiling face before showing the scrolling smiling time
+// message.
+#define UNICOM_FINAL_TIMEOUT_MSEC 1000
+
 ////////////////////////////////////////////////////////////////////////////////
 // Significant dates
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,6 +158,13 @@
 #define NEW_YEAR_EVE_MONTH 12
 #define NEW_YEAR_EVE_DAY 31
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Valid hours to randomly pick for smiling time (inclusive)
+////////////////////////////////////////////////////////////////////////////////
+
+#define SMILING_TIME_CANDIDATES_START 17
+#define SMILING_TIME_CANDIDATES_END 22
 
 ////////////////////////////////////////////////////////////////////////////////
 // Shake detection parameters
