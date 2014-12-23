@@ -342,8 +342,6 @@ void loop() {
 		case STATE_CLOCK:
 		case STATE_CLOCK_UPDATE:
 			{
-				state = STATE_CLOCK_UPDATE;
-				
 				// Update the time, if it has changed (or just entering the clock state)
 				time_t t = now();
 				if (state == STATE_CLOCK || hour(t) != last_hour || minute(t) != last_minute) {
@@ -361,13 +359,15 @@ void loop() {
 						tween_start(prev_buf, cur_buf, TWEEN_FADE_THROUGH_BLACK, CLOCK_TWEEN_FRAMES);
 					else
 						tween_start(prev_buf, cur_buf, TWEEN_FADE, CLOCK_UPDATE_TWEEN_FRAMES);
+					
+					state = STATE_CLOCK_UPDATE;
 				} else if (!tween_running && (  smiling_time_last_day != day(t)
 				                             && hour(t) >= smiling_time_hour
 				                             && minute(t) >= smiling_time_minute
 				                             )) {
 					// Show smiling time at the designated time
 					state = STATE_SMILING_TIME;
-				} else if (!tween_running && (  (motd_hour != hour(t) && (24 + motd_hour - hour(t))%24 != 1)
+				} else if (!tween_running && (  (motd_hour != hour(t) && motd_hour != ((hour(t) + 1)%24))
 				                             || (hour(t) == motd_hour && minute(t) >= motd_minute)
 				                             )) {
 					// Show the message of the day at a random point each hour.
@@ -375,6 +375,8 @@ void loop() {
 				} else if (shaking) {
 					// React to shaking
 					state = STATE_SHAKE;
+				} else {
+					state = STATE_CLOCK_UPDATE;
 				}
 			}
 			break;
@@ -516,7 +518,7 @@ void loop() {
 				motd_minute = 0;
 			} else {
 				// Otherwise, pick randomly in the next hour
-				motd_hour = (motd_hour+1) % 24;
+				motd_hour = (hour()+1) % 24;
 				motd_minute = random(0,60);
 			}
 			
@@ -629,10 +631,12 @@ void loop() {
 			if (unicom_updating) {
 				// Make the face get progressively happier while the synchronisation
 				// proceeds.
-				if (unicom_bits_arrived <= unicom_num_bits) {
-					face(cur_buf, (unicom_bits_arrived*FACE_MAX) / unicom_num_bits, false);
-					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
-				}
+				if (unicom_bits_arrived <= unicom_num_bits)
+					animation_frame = (unicom_bits_arrived*FACE_MAX) / unicom_num_bits;
+				else
+					animation_frame = FACE_MAX;
+				face(cur_buf, animation_frame, false);
+				tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
 			} else {
 				if (unicom_bits_arrived >= unicom_num_bits) {
 					Serial.println(F("INFO: Unicom data stream arrived successfuly."));
@@ -658,13 +662,13 @@ void loop() {
 		case STATE_UNICOM_ERROR:
 			// Animate the face getting progressively sadder until hitting its minimum
 			// happiness and lingering a little.
-			if (unicom_bits_arrived >= FACE_MIN) {
+			if (animation_frame >= FACE_MIN) {
 				if (millis() - last_time >= UNICOM_ERROR_FRAME_MSEC) {
-					if (unicom_bits_arrived > FACE_MAX)
-						unicom_bits_arrived = FACE_MAX;
-					face(cur_buf, unicom_bits_arrived, false);
+					if (animation_frame > FACE_MAX)
+						animation_frame = FACE_MAX;
+					face(cur_buf, animation_frame, false);
 					tween_start(prev_buf, cur_buf, TWEEN_CUT, 1);
-					unicom_bits_arrived--;
+					animation_frame--;
 					last_time = millis();
 				}
 			} else if (millis() - last_time >= UNICOM_FINAL_TIMEOUT_MSEC) {
@@ -808,8 +812,6 @@ void loop() {
 			Serial.println(state);
 			break;
 	}
-	
-	Serial.println(shaking);
 	
 	// Update the display
 	int intensity;
